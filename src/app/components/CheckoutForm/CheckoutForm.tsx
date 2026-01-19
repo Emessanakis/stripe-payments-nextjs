@@ -1,143 +1,32 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import Image from 'next/image';
+import { useState, useEffect } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import type { Country, CountryApiResponse } from './types';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import './checkoutForm.css';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
-function CheckoutForm() {
+// Convert dollars to cents
+const convertToCents = (dollars: number) => Math.round(dollars * 100);
+
+function CheckoutForm({ 
+  amount, 
+  currencySymbol, 
+  onAmountChange, 
+  onCurrencyChange, 
+  currencies 
+}: { 
+  amount: number; 
+  currency: string; 
+  currencySymbol: string;
+  onAmountChange: (amount: number) => void;
+  onCurrencyChange: (currency: string) => void;
+  currencies: { code: string; symbol: string; name: string }[];
+}) {
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
-  const [amount, setAmount] = useState(10); // default $10
-  const [currency, setCurrency] = useState('usd');
-  const [country, setCountry] = useState('US');
-  const [countries, setCountries] = useState<Country[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
-  const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Fetch countries and currencies from REST Countries API
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2,flags,currencies');
-        const data: CountryApiResponse[] = await response.json();
-        
-        // Process countries
-        const countryList: Country[] = data.map((country) => ({
-          name: country.name.common,
-          code: country.cca2,
-          flag: country.flags.svg || country.flags.png || '',
-          currencies: country.currencies ? Object.keys(country.currencies) : []
-        })).sort((a, b) => a.name.localeCompare(b.name));
-        
-        setCountries(countryList);
-        setDataLoading(false);
-      } catch (error) {
-        console.error('Failed to fetch countries/currencies:', error);
-        setDataLoading(false);
-      }
-    };
-    
-    fetchData();
-  }, []);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsCountryDropdownOpen(false);
-        setSearchTerm('');
-      }
-    };
-
-    if (isCountryDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isCountryDropdownOpen]);
-
-  // Keyboard navigation for country dropdown
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!isCountryDropdownOpen) return;
-
-      if (event.key === 'Escape') {
-        setIsCountryDropdownOpen(false);
-        setSearchTerm('');
-        return;
-      }
-
-      // Handle letter/number keys for search
-      if (event.key.length === 1 && /[a-zA-Z0-9]/.test(event.key)) {
-        const newSearchTerm = searchTerm + event.key.toLowerCase();
-        setSearchTerm(newSearchTerm);
-
-        // Find first matching country
-        const matchingCountry = countries.find(c => 
-          c.name.toLowerCase().startsWith(newSearchTerm)
-        );
-
-        if (matchingCountry) {
-          setCountry(matchingCountry.code);
-        }
-
-        // Clear search term after 1 second of inactivity
-        if (searchTimeoutRef.current) {
-          clearTimeout(searchTimeoutRef.current);
-        }
-        searchTimeoutRef.current = setTimeout(() => {
-          setSearchTerm('');
-        }, 1000);
-      }
-    };
-
-    if (isCountryDropdownOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [isCountryDropdownOpen, searchTerm, countries]);
-
-  // Scroll selected country into view
-  useEffect(() => {
-    if (isCountryDropdownOpen && country) {
-      const selectedElement = document.querySelector(`.dropdown-item[data-country-code="${country}"]`);
-      if (selectedElement) {
-        selectedElement.scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest',
-        });
-      }
-    }
-  }, [country, isCountryDropdownOpen]);
-
-  // Convert dollars to cents
-  const convertToCents = (dollars: number) => Math.round(dollars * 100);
-
-  // Handle country change and update currency accordingly
-  const handleCountryChange = (countryCode: string) => {
-    setCountry(countryCode);
-    const selectedCountry = countries.find(c => c.code === countryCode);
-    if (selectedCountry?.currencies.length) {
-      setCurrency(selectedCountry.currencies[0].toLowerCase());
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,115 +34,146 @@ function CheckoutForm() {
 
     setLoading(true);
 
-    // Call your Next.js API route with amount in cents, currency, country
-    const res = await fetch('/api/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: convertToCents(amount), currency, country }),
-    });
-    const data = await res.json();
-
-    // Confirm payment
-    const result = await stripe.confirmCardPayment(data.clientSecret, {
-      payment_method: { card: elements.getElement(CardElement)! },
+    // Confirm payment with Payment Element
+    const result = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: `${window.location.origin}/success`,
+      },
+      redirect: 'if_required',
     });
 
     if (result.error) {
       alert(result.error.message);
+      setLoading(false);
     } else if (result.paymentIntent?.status === 'succeeded') {
       alert('Payment successful!');
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
     <form onSubmit={handleSubmit} className="checkout-form">
       <h2>Checkout</h2>
       
-      <label>
-        Amount:
-        <input
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(parseFloat(e.target.value))}
-          min={0.5}
-          step={0.01}
-        />
-      </label>
+      <div className="amount-currency-row">
+        <label className="amount-label">
+          Amount
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => onAmountChange(parseFloat(e.target.value))}
+            min={0.5}
+            step={0.01}
+            className="amount-input"
+          />
+        </label>
 
-      <label>
-        Country:
-        <div className="custom-dropdown" ref={dropdownRef}>
-          <div 
-            className="dropdown-header"
-            onClick={() => !dataLoading && setIsCountryDropdownOpen(!isCountryDropdownOpen)}
+        <label className="currency-label">
+          Currency
+          <select 
+            value={currencies.find(c => c.symbol === currencySymbol)?.code || 'usd'} 
+            onChange={(e) => onCurrencyChange(e.target.value)}
+            className="currency-select"
           >
-            {dataLoading ? (
-              'Loading countries...'
-            ) : (
-              <>
-                {countries.find(c => c.code === country)?.flag && (
-                  <Image 
-                    src={countries.find(c => c.code === country)?.flag || ''} 
-                    alt=""
-                    width={24}
-                    height={16}
-                    className="flag-icon"
-                    unoptimized
-                  />
-                )}
-                <span>{countries.find(c => c.code === country)?.name || 'Select a country'}</span>
-                <span className="dropdown-arrow">{isCountryDropdownOpen ? '▲' : '▼'}</span>
-              </>
-            )}
-          </div>
-          {isCountryDropdownOpen && !dataLoading && (
-            <div className="dropdown-list">
-              {countries.map((c) => (
-                <div
-                  key={c.code}
-                  data-country-code={c.code}
-                  className={`dropdown-item ${c.code === country ? 'selected' : ''}`}
-                  onClick={() => {
-                    handleCountryChange(c.code);
-                    setIsCountryDropdownOpen(false);
-                  }}
-                >
-                  <Image 
-                    src={c.flag} 
-                    alt=""
-                    width={24}
-                    height={16}
-                    className="flag-icon"
-                    unoptimized
-                  />
-                  <span>{c.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </label>
+            {currencies.map((curr) => (
+              <option key={curr.code} value={curr.code}>
+                {curr.symbol} {curr.code.toUpperCase()}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       <label>
-        Card Details:
-        <div className="card-element">
-          <CardElement />
+        Payment Details
+        <div className="payment-element">
+          <PaymentElement />
         </div>
       </label>
 
       <button type="submit" disabled={!stripe || loading}>
-        {loading ? 'Processing...' : `Pay ${amount.toFixed(2)} ${currency.toUpperCase()}`}
+        {loading ? 'Processing...' : `Pay ${currencySymbol}${amount.toFixed(2)}`}
       </button>
     </form>
   );
 }
 
 export default function Checkout() {
+  const [clientSecret, setClientSecret] = useState('');
+  const [amount, setAmount] = useState(10);
+  const [currency, setCurrency] = useState('usd');
+  const [currencies, setCurrencies] = useState<{ code: string; symbol: string; name: string }[]>([]);
+  const [currenciesLoading, setCurrenciesLoading] = useState(true);
+
+  // Fetch available currencies from Stripe
+  useEffect(() => {
+    const fetchCurrencies = async () => {
+      try {
+        const res = await fetch('/api/currencies');
+        const data = await res.json();
+        setCurrencies(data.currencies);
+      } catch (error) {
+        console.error('Error fetching currencies:', error);
+        // Fallback to popular currencies
+        setCurrencies([
+          { code: 'usd', symbol: '$', name: 'US Dollar' },
+          { code: 'eur', symbol: '€', name: 'Euro' },
+          { code: 'gbp', symbol: '£', name: 'British Pound' },
+          { code: 'jpy', symbol: '¥', name: 'Japanese Yen' },
+        ]);
+      } finally {
+        setCurrenciesLoading(false);
+      }
+    };
+
+    fetchCurrencies();
+  }, []);
+
+  // Create PaymentIntent when amount or currency changes
+  useEffect(() => {
+    const createPaymentIntent = async () => {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          amount: convertToCents(amount), 
+          currency
+        }),
+      });
+      const data = await res.json();
+      setClientSecret(data.clientSecret);
+    };
+
+    if (amount > 0) {
+      createPaymentIntent();
+    }
+  }, [amount, currency]);
+
+  if (currenciesLoading || !clientSecret) {
+    return (
+      <div className="checkout-form loading-container">
+        <div className="loader"></div>
+        <p className="loading-text">Loading payment form...</p>
+      </div>
+    );
+  }
+
+  const currentCurrency = currencies.find(c => c.code === currency);
+
   return (
-    <Elements stripe={stripePromise}>
-      <CheckoutForm />
+    <Elements 
+      stripe={stripePromise}
+      options={{ clientSecret }}
+    >
+      <CheckoutForm 
+        amount={amount} 
+        currency={currency} 
+        currencySymbol={currentCurrency?.symbol || '$'}
+        onAmountChange={setAmount}
+        onCurrencyChange={setCurrency}
+        currencies={currencies}
+      />
     </Elements>
   );
 }

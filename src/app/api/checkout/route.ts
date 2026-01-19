@@ -11,8 +11,9 @@ export async function POST(req: Request) {
   const paymentIntent = await stripe.paymentIntents.create({
     amount,
     currency,
-    payment_method_types: ['card'],
-    // Optional: you can pass country info in shipping or metadata
+    automatic_payment_methods: {
+      enabled: true,
+    },
     metadata: { country },
   });
 
