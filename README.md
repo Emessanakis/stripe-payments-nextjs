@@ -26,7 +26,7 @@ A modern, production-ready Stripe payment integration built with Next.js 15, Typ
 
 1. **Clone the repository**
    ```bash
-   git clone <https://github.com/Emessanakis/stripe-payments-nextjs>
+   git clone https://github.com/Emessanakis/stripe-payments-nextjs
    cd stripe-payments-nextjs
    ```
 
