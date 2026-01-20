@@ -57,7 +57,7 @@ function CheckoutForm({ amount }: { amount: number }) {
       </label>
 
       <button type="submit" disabled={!stripe || loading}>
-        {loading ? 'Processing...' : `Pay €${amount.toFixed(2)}`}
+        {loading ? 'Processing...' : `Pay ${amount.toFixed(2)} €`}
       </button>
 
       <Dialog

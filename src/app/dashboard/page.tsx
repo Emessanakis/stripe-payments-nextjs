@@ -5,14 +5,18 @@ import {
   Box, 
   Card, 
   CardContent, 
-  Grid, 
   Typography, 
   CircularProgress,
-  Chip
+  Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper
 } from '@mui/material';
 import PaymentIcon from '@mui/icons-material/Payment';
-import CreditCardIcon from '@mui/icons-material/CreditCard';
-import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 
 interface Analytics {
@@ -22,26 +26,29 @@ interface Analytics {
   byStatus: Record<string, number>;
 }
 
-const paymentMethodIcons: Record<string, JSX.Element> = {
-  card: <CreditCardIcon />,
-  paypal: <AccountBalanceIcon />,
-  revolut_pay: <PaymentIcon />,
-  google_pay: <PaymentIcon />,
-  apple_pay: <PaymentIcon />,
-};
+interface BalanceInfo {
+  available: number;
+  pending: number;
+  currency: string;
+}
 
-const paymentMethodLabels: Record<string, string> = {
-  card: 'Credit/Debit Cards',
-  paypal: 'PayPal',
-  revolut_pay: 'Revolut Pay',
-  google_pay: 'Google Pay',
-  apple_pay: 'Apple Pay',
-};
+interface PaymentHistoryItem {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  paymentMethod: string;
+  created: number;
+  description: string;
+}
 
 export default function Dashboard() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
+  const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [currency, setCurrency] = useState('eur');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -50,6 +57,8 @@ export default function Dashboard() {
         const data = await res.json();
         if (data.success) {
           setAnalytics(data.analytics);
+          setPaymentHistory(data.paymentHistory || []);
+          setBalance(data.balance);
           setCurrency(data.currency);
         }
       } catch (error) {
@@ -83,6 +92,51 @@ export default function Dashboard() {
     return currency === 'eur' ? `€${value.toFixed(2)}` : `$${value.toFixed(2)}`;
   };
 
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp * 1000).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'succeeded':
+        return 'success';
+      case 'processing':
+        return 'warning';
+      case 'requires_payment_method':
+      case 'requires_action':
+        return 'info';
+      case 'canceled':
+        return 'error';
+      default:
+        return 'default';
+    }
+  };
+
+  const getPaymentMethodLabel = (method: string) => {
+    const labels: Record<string, string> = {
+      card: 'Card',
+      paypal: 'PayPal',
+      revolut_pay: 'Revolut Pay',
+      google_pay: 'Google Pay',
+      apple_pay: 'Apple Pay',
+    };
+    return labels[method] || method;
+  };
+
+  // Filter payment history based on status
+  const filteredPaymentHistory = statusFilter === 'all' 
+    ? paymentHistory 
+    : paymentHistory.filter(p => p.status === statusFilter);
+
+  // Get unique statuses for filter buttons
+  const availableStatuses = ['all', ...Array.from(new Set(paymentHistory.map(p => p.status)))];
+
   return (
     <Box>
       <Box sx={{ mb: 4 }}>
@@ -95,8 +149,27 @@ export default function Dashboard() {
       </Box>
 
       {/* Overview Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
+      <Box sx={{ display: 'flex', gap: 3, mb: 4, flexWrap: 'wrap' }}>
+        <Box sx={{ flex: '1 1 250px' }}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <PaymentIcon sx={{ color: '#00d924', mr: 1 }} />
+                <Typography variant="h6">Stripe Balance</Typography>
+              </Box>
+              <Typography variant="h3" sx={{ fontWeight: 600 }}>
+                {balance ? formatCurrency(balance.available) : '0.00 €'}
+              </Typography>
+              {balance && balance.pending > 0 && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Pending: {formatCurrency(balance.pending)}
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Box>
+
+        <Box sx={{ flex: '1 1 250px' }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -108,23 +181,26 @@ export default function Dashboard() {
               </Typography>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Box sx={{ flex: '1 1 250px' }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <PaymentIcon sx={{ color: '#00d924', mr: 1 }} />
-                <Typography variant="h6">Total Revenue</Typography>
+                <PaymentIcon sx={{ color: '#ff9800', mr: 1 }} />
+                <Typography variant="h6">Period Revenue</Typography>
               </Box>
               <Typography variant="h3" sx={{ fontWeight: 600 }}>
                 {formatCurrency(analytics.totalAmount)}
               </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Last 30 days
+              </Typography>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Box sx={{ flex: '1 1 250px' }}>
           <Card>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2 }}>Successful</Typography>
@@ -133,61 +209,78 @@ export default function Dashboard() {
               </Typography>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
+      </Box>
 
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>Processing</Typography>
-              <Typography variant="h3" sx={{ fontWeight: 600, color: '#ff9800' }}>
-                {analytics.byStatus.processing || 0}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Payment Methods Breakdown */}
+      {/* Payment History Table */}
       <Card>
         <CardContent>
           <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
-            Payment Methods
+            Payment History
           </Typography>
-          <Grid container spacing={3}>
-            {Object.entries(analytics.byPaymentMethod).map(([method, data]) => (
-              <Grid item xs={12} sm={6} md={4} key={method}>
-                <Card variant="outlined" sx={{ backgroundColor: '#f9f9f9' }}>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      {paymentMethodIcons[method] || <PaymentIcon />}
-                      <Typography variant="h6" sx={{ ml: 1 }}>
-                        {paymentMethodLabels[method] || method}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Transactions:
-                      </Typography>
-                      <Chip label={data.count} size="small" color="primary" />
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2" color="text.secondary">
-                        Total Amount:
-                      </Typography>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        {formatCurrency(data.amount)}
-                      </Typography>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
 
-          {Object.keys(analytics.byPaymentMethod).length === 0 && (
+          {/* Status Filter Chips */}
+          {paymentHistory.length > 0 && (
+            <Box sx={{ display: 'flex', gap: 1, mb: 3, flexWrap: 'wrap' }}>
+              {availableStatuses.map((status) => (
+                <Chip
+                  key={status}
+                  label={status === 'all' ? 'All' : status}
+                  onClick={() => setStatusFilter(status)}
+                  color={statusFilter === status ? 'primary' : 'default'}
+                  variant={statusFilter === status ? 'filled' : 'outlined'}
+                  sx={{ textTransform: 'capitalize' }}
+                />
+              ))}
+            </Box>
+          )}
+          
+          {filteredPaymentHistory.length > 0 ? (
+            <TableContainer component={Paper} variant="outlined" sx={{ height:400 , overflow: 'auto' }}>
+              <Table stickyHeader>
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                    <TableCell sx={{ fontWeight: 600 }}>ID</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Amount</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Method</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredPaymentHistory.map((payment) => (
+                    <TableRow key={payment.id} hover>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                          {payment.id}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{formatDate(payment.created)}</TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontWeight: 600 }}>
+                          {formatCurrency(payment.amount)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{getPaymentMethodLabel(payment.paymentMethod)}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={payment.status} 
+                          color={getStatusColor(payment.status) as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'}
+                          size="small"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Typography variant="body1" color="text.secondary">
-                No payment data available yet. Make your first payment to see analytics!
+                {paymentHistory.length === 0 
+                  ? 'No payment history available yet. Make your first payment to see transactions!'
+                  : `No ${statusFilter} payments found.`
+                }
               </Typography>
             </Box>
           )}

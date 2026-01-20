@@ -4,7 +4,7 @@ import { Box, CssBaseline } from '@mui/material';
 
 export const metadata: Metadata = {
   icons: {
-    icon: '/stripeIcon.png',
+    icon: '/stripe-app-icon.ico',
   },
 };
 
