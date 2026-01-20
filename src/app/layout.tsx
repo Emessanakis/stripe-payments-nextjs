@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import Sidebar from './components/Sidebar/Sidebar';
+import { Box, CssBaseline } from '@mui/material';
 
 export const metadata: Metadata = {
   icons: {
@@ -11,7 +13,23 @@ export default function RootLayout({ children } : {
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body style={{ margin: 0, padding: 0 }}>
+        <CssBaseline />
+        <Box sx={{ display: 'flex' }}>
+          <Sidebar />
+          <Box
+            component="main"
+            sx={{
+              flexGrow: 1,
+              p: 3,
+              backgroundColor: '#f5f5f5',
+              minHeight: '100vh',
+            }}
+          >
+            {children}
+          </Box>
+        </Box>
+      </body>
     </html>
   );
 }

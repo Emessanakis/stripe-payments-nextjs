@@ -1,10 +1,5 @@
-import { StrictMode } from "react";
-import Checkout from "./components/CheckoutForm/CheckoutForm";
+import { redirect } from 'next/navigation';
 
 export default function Homepage() {
-  return (
-    <StrictMode>
-      <Checkout />
-    </StrictMode>
-  );
+  redirect('/dashboard');
 }
