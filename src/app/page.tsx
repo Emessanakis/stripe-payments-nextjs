@@ -1,10 +1,10 @@
 import { StrictMode } from "react";
-import StripeContainer from "./components/CheckoutForm/CheckoutForm";
+import Checkout from "./components/CheckoutForm/CheckoutForm";
 
 export default function Homepage() {
   return (
     <StrictMode>
-      < StripeContainer />
+      <Checkout />
     </StrictMode>
   );
 }
