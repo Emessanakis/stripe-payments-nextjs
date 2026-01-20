@@ -321,3 +321,17 @@
   cursor: pointer;
   font-weight: 500;
 }
+
+/* Test mode notice */
+.test-mode-notice {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background-color: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  color: #856404;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.5;
+}

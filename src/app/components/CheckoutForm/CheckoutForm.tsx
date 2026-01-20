@@ -8,23 +8,10 @@ import './checkoutForm.css';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
-// Convert dollars to cents
-const convertToCents = (dollars: number) => Math.round(dollars * 100);
+// Convert euros to cents
+const convertToCents = (euros: number) => Math.round(euros * 100);
 
-function CheckoutForm({ 
-  amount, 
-  currencySymbol, 
-  onAmountChange, 
-  onCurrencyChange, 
-  currencies 
-}: { 
-  amount: number; 
-  currency: string; 
-  currencySymbol: string;
-  onAmountChange: (amount: number) => void;
-  onCurrencyChange: (currency: string) => void;
-  currencies: { code: string; symbol: string; name: string }[];
-}) {
+function CheckoutForm({ amount }: { amount: number }) {
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
@@ -62,44 +49,15 @@ function CheckoutForm({
     <form onSubmit={handleSubmit} className="checkout-form">
       <h2>Checkout</h2>
       
-      <div className="amount-currency-row">
-        <label className="amount-label">
-          Amount
-          <input
-            type="number"
-            value={amount}
-            onChange={(e) => onAmountChange(parseFloat(e.target.value))}
-            min={0.5}
-            step={0.01}
-            className="amount-input"
-          />
-        </label>
-
-        <label className="currency-label">
-          Currency
-          <select 
-            value={currencies.find(c => c.symbol === currencySymbol)?.code || 'usd'} 
-            onChange={(e) => onCurrencyChange(e.target.value)}
-            className="currency-select"
-          >
-            {currencies.map((curr) => (
-              <option key={curr.code} value={curr.code}>
-                {curr.symbol} {curr.code.toUpperCase()}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
       <label>
-        Payment Details
+        <h3>Payment Details</h3>
         <div className="payment-element">
           <PaymentElement />
         </div>
       </label>
 
       <button type="submit" disabled={!stripe || loading}>
-        {loading ? 'Processing...' : `Pay ${currencySymbol}${amount.toFixed(2)}`}
+        {loading ? 'Processing...' : `Pay €${amount.toFixed(2)}`}
       </button>
 
       <Dialog
@@ -120,62 +78,36 @@ function CheckoutForm({
           </Button>
         </DialogActions>
       </Dialog>
+      
+      <p className="test-mode-notice">
+        ⓘ This is for test payments only.
+      </p>
     </form>
   );
 }
 
 export default function Checkout() {
   const [clientSecret, setClientSecret] = useState('');
-  const [amount, setAmount] = useState(10);
-  const [currency, setCurrency] = useState('usd');
-  const [currencies, setCurrencies] = useState<{ code: string; symbol: string; name: string }[]>([]);
-  const [currenciesLoading, setCurrenciesLoading] = useState(true);
+  const [amount] = useState(10);
 
-  // Fetch available currencies from Stripe
-  useEffect(() => {
-    const fetchCurrencies = async () => {
-      try {
-        const res = await fetch('/api/currencies');
-        const data = await res.json();
-        setCurrencies(data.currencies);
-      } catch (error) {
-        console.error('Error fetching currencies:', error);
-        // Fallback to popular currencies
-        setCurrencies([
-          { code: 'usd', symbol: '$', name: 'US Dollar' },
-          { code: 'eur', symbol: '€', name: 'Euro' },
-          { code: 'gbp', symbol: '£', name: 'British Pound' },
-          { code: 'jpy', symbol: '¥', name: 'Japanese Yen' },
-        ]);
-      } finally {
-        setCurrenciesLoading(false);
-      }
-    };
-
-    fetchCurrencies();
-  }, []);
-
-  // Create PaymentIntent when amount or currency changes
+  // Create PaymentIntent
   useEffect(() => {
     const createPaymentIntent = async () => {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          amount: convertToCents(amount), 
-          currency
+          amount: convertToCents(amount)
         }),
       });
       const data = await res.json();
       setClientSecret(data.clientSecret);
     };
 
-    if (amount > 0) {
-      createPaymentIntent();
-    }
-  }, [amount, currency]);
+    createPaymentIntent();
+  }, [amount]);
 
-  if (currenciesLoading || !clientSecret) {
+  if (!clientSecret) {
     return (
       <div className="checkout-form loading-container">
         <div className="loader"></div>
@@ -184,21 +116,12 @@ export default function Checkout() {
     );
   }
 
-  const currentCurrency = currencies.find(c => c.code === currency);
-
   return (
     <Elements 
       stripe={stripePromise}
       options={{ clientSecret }}
     >
-      <CheckoutForm 
-        amount={amount} 
-        currency={currency} 
-        currencySymbol={currentCurrency?.symbol || '$'}
-        onAmountChange={setAmount}
-        onCurrencyChange={setCurrency}
-        currencies={currencies}
-      />
+      <CheckoutForm amount={amount} />
     </Elements>
   );
 }
