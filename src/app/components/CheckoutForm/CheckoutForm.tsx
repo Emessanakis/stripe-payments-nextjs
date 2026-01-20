@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
 import './checkoutForm.css';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
@@ -27,6 +28,8 @@ function CheckoutForm({
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
+  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,22 +37,25 @@ function CheckoutForm({
 
     setLoading(true);
 
-    // Confirm payment with Payment Element
-    const result = await stripe.confirmPayment({
+    // Confirm payment and redirect to success page
+    const { error } = await stripe.confirmPayment({
       elements,
       confirmParams: {
         return_url: `${window.location.origin}/success`,
       },
-      redirect: 'if_required',
+      redirect: 'always', // Always redirect to success page after payment
     });
 
-    if (result.error) {
-      alert(result.error.message);
-      setLoading(false);
-    } else if (result.paymentIntent?.status === 'succeeded') {
-      alert('Payment successful!');
+    if (error) {
+      // Only errors that occur before redirect will be caught here
+      setErrorMessage(error.message || 'An error occurred during payment');
+      setErrorDialogOpen(true);
       setLoading(false);
     }
+  };
+
+  const handleCloseErrorDialog = () => {
+    setErrorDialogOpen(false);
   };
 
   return (
@@ -95,6 +101,25 @@ function CheckoutForm({
       <button type="submit" disabled={!stripe || loading}>
         {loading ? 'Processing...' : `Pay ${currencySymbol}${amount.toFixed(2)}`}
       </button>
+
+      <Dialog
+        open={errorDialogOpen}
+        onClose={handleCloseErrorDialog}
+        aria-labelledby="error-dialog-title"
+        aria-describedby="error-dialog-description"
+      >
+        <DialogTitle id="error-dialog-title">Payment Error</DialogTitle>
+        <DialogContent>
+          <DialogContentText id="error-dialog-description">
+            {errorMessage}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseErrorDialog} color="primary" autoFocus>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </form>
   );
 }
