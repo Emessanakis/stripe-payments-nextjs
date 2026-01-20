@@ -34,10 +34,17 @@ export default function Sidebar() {
   const theme = useTheme();
   const isSmallScreen = useMediaQuery('(max-width:1200px)');
   const [collapsed, setCollapsed] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setCollapsed(isSmallScreen);
-  }, [isSmallScreen]);
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) {
+      setCollapsed(isSmallScreen);
+    }
+  }, [isSmallScreen, mounted]);
 
   const drawerWidth = collapsed ? DRAWER_WIDTH_COLLAPSED : DRAWER_WIDTH;
 
