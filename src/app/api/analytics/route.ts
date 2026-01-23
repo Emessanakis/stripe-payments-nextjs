@@ -14,6 +14,7 @@ export async function GET(request: Request) {
     const sortOrder = searchParams.get('sortOrder') as 'asc' | 'desc' | null;
     const searchField = searchParams.get('searchField') || '';
     const searchValue = searchParams.get('searchValue') || '';
+    const statusFilter = searchParams.get('status') || '';
     
     // Fetch actual Stripe balance
     const balance = await stripe.balance.retrieve();
@@ -85,6 +86,13 @@ export async function GET(request: Request) {
         const searchStr = searchValue.toLowerCase();
         
         return valueStr.includes(searchStr);
+      });
+    }
+
+    // Apply status filter if provided
+    if (statusFilter) {
+      filteredPaymentHistory = filteredPaymentHistory.filter((payment) => {
+        return payment.status === statusFilter;
       });
     }
 

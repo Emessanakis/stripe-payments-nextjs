@@ -95,6 +95,9 @@ export default function PaymentHistory({ availableStatuses, currency }: PaymentH
         if (debouncedSearchValue.trim()) {
           url += `&searchField=${searchField}&searchValue=${encodeURIComponent(debouncedSearchValue)}`;
         }
+        if (statusFilter && statusFilter !== 'all') {
+          url += `&status=${statusFilter}`;
+        }
         const res = await fetch(url);
         const data = await res.json();
         if (data.success) {
@@ -109,7 +112,7 @@ export default function PaymentHistory({ availableStatuses, currency }: PaymentH
     };
 
     fetchPaymentHistory();
-  }, [currentPage, itemsPerPage, sortField, sortOrder, searchField, debouncedSearchValue]);
+  }, [currentPage, itemsPerPage, sortField, sortOrder, searchField, debouncedSearchValue, statusFilter]);
 
   const formatCurrency = (amount: number) => {
     const value = amount / 100;
@@ -192,9 +195,10 @@ export default function PaymentHistory({ availableStatuses, currency }: PaymentH
     }
   };
 
-  const filteredPaymentHistory = statusFilter === 'all'
-    ? paymentHistory
-    : paymentHistory.filter(p => p.status === statusFilter);
+  const handleStatusFilterChange = (status: string) => {
+    setStatusFilter(status);
+    setCurrentPage(1);
+  };
 
   const TableSkeleton = () => (
     <>
@@ -271,7 +275,7 @@ export default function PaymentHistory({ availableStatuses, currency }: PaymentH
               <Chip
                 key={status}
                 label={status === 'all' ? 'All' : status}
-                onClick={() => setStatusFilter(status)}
+                onClick={() => handleStatusFilterChange(status)}
                 color={statusFilter === status ? 'primary' : 'default'}
                 variant={statusFilter === status ? 'filled' : 'outlined'}
                 sx={{ textTransform: 'capitalize' }}
@@ -282,7 +286,7 @@ export default function PaymentHistory({ availableStatuses, currency }: PaymentH
 
         {loading ? (
           <TableSkeleton />
-        ) : filteredPaymentHistory.length > 0 ? (
+        ) : paymentHistory.length > 0 ? (
           <TableContainer component={Paper} variant="outlined" sx={{ minHeight: 405, overflow: 'auto' }}>
             <Table stickyHeader>
               <TableHead>
@@ -317,7 +321,7 @@ export default function PaymentHistory({ availableStatuses, currency }: PaymentH
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredPaymentHistory.map((payment, index) => (
+                {paymentHistory.map((payment, index) => (
                   <TableRow key={payment.id} hover>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary' }}>
@@ -360,7 +364,7 @@ export default function PaymentHistory({ availableStatuses, currency }: PaymentH
         )}
 
         {/* Pagination Controls */}
-        {pagination && pagination.totalPages > 1 && !loading && filteredPaymentHistory.length > 0 && (
+        {pagination && pagination.totalPages > 1 && !loading && paymentHistory.length > 0 && (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 3 }}>
             <Pagination
               count={pagination.totalPages}
