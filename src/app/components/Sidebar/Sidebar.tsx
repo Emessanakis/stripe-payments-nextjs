@@ -14,7 +14,6 @@ import {
   Box,
   Typography,
   useMediaQuery,
-  useTheme
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PaymentIcon from '@mui/icons-material/Payment';
@@ -31,7 +30,6 @@ const menuItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const theme = useTheme();
   const isSmallScreen = useMediaQuery('(max-width:1200px)');
   const [collapsed, setCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -65,17 +63,18 @@ export default function Sidebar() {
         },
       }}
     >
-      <Toolbar sx={{ px: collapsed ? 1.5 : 2, justifyContent: collapsed ? 'center' : 'flex-start' }}>
+      <Toolbar sx={{ px: collapsed ? 1.5 : 2 }}>
         <Box sx={{ 
           display: 'flex', 
           alignItems: 'center', 
+          justifyContent: collapsed ? 'center' : 'flex-start',
+          marginLeft: collapsed ? 0 : -1.5,
           gap: 1, 
-          py: 1,
           width: '100%',
         }}>
-          <Image src={stripeIcon} alt="Stripe Logo" width={30} height={30} />
+          <Image src={stripeIcon} alt="Stripe Logo" width={50} height={50} />
           {!collapsed && (
-            <Typography variant="h6" component="div" sx={{ fontWeight: 600, fontSize: 16 }}>
+            <Typography variant="h6" component="div" sx={{ fontWeight: 600, fontSize: 16, minWidth:300, backgroundColor: 'inherit' }}>
               Stripe-Dashboard
             </Typography>
           )}
@@ -93,7 +92,6 @@ export default function Sidebar() {
                 justifyContent: collapsed ? 'center' : 'flex-start',
                 '&.Mui-selected': {
                   backgroundColor: 'rgba(99, 91, 255, 0.2)',
-                  borderLeft: '3px solid #635bff',
                   '&:hover': {
                     backgroundColor: 'rgba(99, 91, 255, 0.3)',
                   },
@@ -106,7 +104,8 @@ export default function Sidebar() {
               <ListItemIcon sx={{ 
                 color: 'inherit', 
                 minWidth: collapsed ? 0 : 40,
-                justifyContent: 'center'
+                justifyContent: 'center',
+                alignContent: 'center',
               }}>
                 {item.icon}
               </ListItemIcon>

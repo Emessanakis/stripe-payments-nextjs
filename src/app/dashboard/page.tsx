@@ -6,18 +6,11 @@ import {
   Card, 
   CardContent, 
   Typography, 
-  CircularProgress,
-  Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper
+  CircularProgress
 } from '@mui/material';
 import PaymentIcon from '@mui/icons-material/Payment';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import PaymentHistory from '../components/PaymentHistory/PaymentHistory';
 
 interface Analytics {
   total: number;
@@ -32,32 +25,19 @@ interface BalanceInfo {
   currency: string;
 }
 
-interface PaymentHistoryItem {
-  id: string;
-  amount: number;
-  currency: string;
-  status: string;
-  paymentMethod: string;
-  created: number;
-  description: string;
-}
-
 export default function Dashboard() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
-  const [paymentHistory, setPaymentHistory] = useState<PaymentHistoryItem[]>([]);
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [currency, setCurrency] = useState('eur');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   useEffect(() => {
     const fetchAnalytics = async () => {
       try {
-        const res = await fetch('/api/analytics');
+        const res = await fetch('/api/analytics?page=1&limit=10');
         const data = await res.json();
         if (data.success) {
           setAnalytics(data.analytics);
-          setPaymentHistory(data.paymentHistory || []);
           setBalance(data.balance);
           setCurrency(data.currency);
         }
@@ -92,50 +72,8 @@ export default function Dashboard() {
     return currency === 'eur' ? `€${value.toFixed(2)}` : `$${value.toFixed(2)}`;
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'succeeded':
-        return 'success';
-      case 'processing':
-        return 'warning';
-      case 'requires_payment_method':
-      case 'requires_action':
-        return 'info';
-      case 'canceled':
-        return 'error';
-      default:
-        return 'default';
-    }
-  };
-
-  const getPaymentMethodLabel = (method: string) => {
-    const labels: Record<string, string> = {
-      card: 'Card',
-      paypal: 'PayPal',
-      revolut_pay: 'Revolut Pay',
-      google_pay: 'Google Pay',
-      apple_pay: 'Apple Pay',
-    };
-    return labels[method] || method;
-  };
-
-  // Filter payment history based on status
-  const filteredPaymentHistory = statusFilter === 'all' 
-    ? paymentHistory 
-    : paymentHistory.filter(p => p.status === statusFilter);
-
-  // Get unique statuses for filter buttons
-  const availableStatuses = ['all', ...Array.from(new Set(paymentHistory.map(p => p.status)))];
+  // Get unique statuses for filter buttons (based on all data from analytics)
+  const availableStatuses = ['all', ...Object.keys(analytics?.byStatus || {})];
 
   return (
     <Box>
@@ -212,80 +150,8 @@ export default function Dashboard() {
         </Box>
       </Box>
 
-      {/* Payment History Table */}
-      <Card>
-        <CardContent>
-          <Typography variant="h5" sx={{ fontWeight: 600, mb: 3 }}>
-            Payment History
-          </Typography>
-
-          {/* Status Filter Chips */}
-          {paymentHistory.length > 0 && (
-            <Box sx={{ display: 'flex', gap: 1, mb: 3, flexWrap: 'wrap' }}>
-              {availableStatuses.map((status) => (
-                <Chip
-                  key={status}
-                  label={status === 'all' ? 'All' : status}
-                  onClick={() => setStatusFilter(status)}
-                  color={statusFilter === status ? 'primary' : 'default'}
-                  variant={statusFilter === status ? 'filled' : 'outlined'}
-                  sx={{ textTransform: 'capitalize' }}
-                />
-              ))}
-            </Box>
-          )}
-          
-          {filteredPaymentHistory.length > 0 ? (
-            <TableContainer component={Paper} variant="outlined" sx={{ height:400 , overflow: 'auto' }}>
-              <Table stickyHeader>
-                <TableHead>
-                  <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                    <TableCell sx={{ fontWeight: 600 }}>ID</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Amount</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Method</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredPaymentHistory.map((payment) => (
-                    <TableRow key={payment.id} hover>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                          {payment.id}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>{formatDate(payment.created)}</TableCell>
-                      <TableCell>
-                        <Typography sx={{ fontWeight: 600 }}>
-                          {formatCurrency(payment.amount)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>{getPaymentMethodLabel(payment.paymentMethod)}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={payment.status} 
-                          color={getStatusColor(payment.status) as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'}
-                          size="small"
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          ) : (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography variant="body1" color="text.secondary">
-                {paymentHistory.length === 0 
-                  ? 'No payment history available yet. Make your first payment to see transactions!'
-                  : `No ${statusFilter} payments found.`
-                }
-              </Typography>
-            </Box>
-          )}
-        </CardContent>
-      </Card>
+      {/* Payment History Component */}
+      <PaymentHistory availableStatuses={availableStatuses} currency={currency} />
     </Box>
   );
 }

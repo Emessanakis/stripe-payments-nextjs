@@ -4,15 +4,25 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-12-15.clover',
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Parse query parameters for pagination
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '6');
+    const sortBy = searchParams.get('sortBy') as 'created' | 'amount' | 'status' | null;
+    const sortOrder = searchParams.get('sortOrder') as 'asc' | 'desc' | null;
+    const searchField = searchParams.get('searchField') || '';
+    const searchValue = searchParams.get('searchValue') || '';
+    
     // Fetch actual Stripe balance
     const balance = await stripe.balance.retrieve();
     
     // Fetch payment intents from the last 30 days
     const thirtyDaysAgo = Math.floor(Date.now() / 1000) - (30 * 24 * 60 * 60);
     
-    const paymentIntents = await stripe.paymentIntents.list({
+    // Fetch all payment intents for analytics (we need the full set for totals)
+    const allPaymentIntents = await stripe.paymentIntents.list({
       limit: 100,
       created: { gte: thirtyDaysAgo },
     });
@@ -29,8 +39,8 @@ export async function GET() {
       byStatus: {} as Record<string, number>,
     };
 
-    // Payment history for table
-    const paymentHistory = paymentIntents.data.map((pi) => ({
+    // Full payment history for analytics
+    const fullPaymentHistory = allPaymentIntents.data.map((pi) => ({
       id: pi.id,
       amount: pi.amount,
       currency: pi.currency,
@@ -40,7 +50,7 @@ export async function GET() {
       description: pi.description || '',
     }));
 
-    paymentIntents.data.forEach((pi) => {
+    allPaymentIntents.data.forEach((pi) => {
       // Count all payments for total
       analytics.total++;
       
@@ -63,10 +73,57 @@ export async function GET() {
       analytics.byStatus[pi.status] = (analytics.byStatus[pi.status] || 0) + 1;
     });
 
+    // Apply search filter if provided
+    let filteredPaymentHistory = fullPaymentHistory;
+    if (searchValue && searchField) {
+      filteredPaymentHistory = fullPaymentHistory.filter((payment) => {
+        const fieldValue = payment[searchField as keyof typeof payment];
+        if (fieldValue === undefined) return false;
+        
+        // Convert to string and do case-insensitive search
+        const valueStr = String(fieldValue).toLowerCase();
+        const searchStr = searchValue.toLowerCase();
+        
+        return valueStr.includes(searchStr);
+      });
+    }
+
+    // Apply sorting if requested
+    if (sortBy && sortOrder) {
+      filteredPaymentHistory.sort((a, b) => {
+        let compareValue = 0;
+        
+        if (sortBy === 'created') {
+          compareValue = a.created - b.created;
+        } else if (sortBy === 'amount') {
+          compareValue = a.amount - b.amount;
+        } else if (sortBy === 'status') {
+          compareValue = a.status.localeCompare(b.status);
+        }
+        
+        return sortOrder === 'asc' ? compareValue : -compareValue;
+      });
+    }
+
+    // Apply pagination to payment history
+    const totalItems = filteredPaymentHistory.length;
+    const totalPages = Math.ceil(totalItems / limit);
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedPaymentHistory = filteredPaymentHistory.slice(startIndex, endIndex);
+
     return Response.json({
       success: true,
       analytics,
-      paymentHistory,
+      paymentHistory: paginatedPaymentHistory,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
       balance: {
         available: eurBalance?.amount || 0,
         pending: pendingBalance?.amount || 0,

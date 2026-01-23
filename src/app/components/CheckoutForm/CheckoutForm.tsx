@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
-import './checkoutForm.css';
+import { Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button, Box, CircularProgress, Typography } from '@mui/material';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -46,19 +45,42 @@ function CheckoutForm({ amount }: { amount: number }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="checkout-form">
-      <h2>Checkout</h2>
-      
-      <label>
-        <h3>Payment Details</h3>
-        <div className="payment-element">
+    <Box
+      component="form"
+      onSubmit={handleSubmit}
+      sx={{
+        maxWidth: 400,
+        margin: '2rem auto',
+        padding: '2rem',
+        background: '#ffffff',
+        borderRadius: '12px',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
+      }}
+    >
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h6" sx={{ fontWeight: 500, color: '#555555', mb: 1 }}>
+          Payment Details
+        </Typography>
+        <Box sx={{ mt: 1 }}>
           <PaymentElement />
-        </div>
-      </label>
+        </Box>
+      </Box>
 
-      <button type="submit" disabled={!stripe || loading}>
+      <Button
+        type="submit"
+        disabled={!stripe || loading}
+        variant="contained"
+        fullWidth
+        sx={{
+          padding: '0.8rem',
+          fontSize: '1rem',
+          fontWeight: 'bold',
+          borderRadius: '8px',
+          textTransform: 'none',
+        }}
+      >
         {loading ? 'Processing...' : `Pay ${amount.toFixed(2)} €`}
-      </button>
+      </Button>
 
       <Dialog
         open={errorDialogOpen}
@@ -79,10 +101,22 @@ function CheckoutForm({ amount }: { amount: number }) {
         </DialogActions>
       </Dialog>
       
-      <p className="test-mode-notice">
+      <Box
+        sx={{
+          mt: 2,
+          padding: '0.75rem',
+          backgroundColor: '#fff3cd',
+          border: '1px solid #ffc107',
+          borderRadius: '6px',
+          color: '#856404',
+          fontSize: '0.875rem',
+          fontWeight: 600,
+          textAlign: 'center',
+        }}
+      >
         ⓘ This is for test payments only.
-      </p>
-    </form>
+      </Box>
+    </Box>
   );
 }
 
@@ -109,10 +143,27 @@ export default function Checkout() {
 
   if (!clientSecret) {
     return (
-      <div className="checkout-form loading-container">
-        <div className="loader"></div>
-        <p className="loading-text">Loading payment form...</p>
-      </div>
+      <Box
+        sx={{
+          maxWidth: 400,
+          margin: '2rem auto',
+          padding: '2rem',
+          background: '#ffffff',
+          borderRadius: '12px',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 300,
+          gap: '1.5rem',
+        }}
+      >
+        <CircularProgress size={48} />
+        <Typography variant="body1" sx={{ color: '#666' }}>
+          Loading payment form...
+        </Typography>
+      </Box>
     );
   }
 
